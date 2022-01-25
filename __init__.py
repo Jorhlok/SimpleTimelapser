@@ -2,7 +2,7 @@
 Simple Timelapser
 by Jorhlok
 Written for 3.0.0
-Partially working 2.80.0
+Partially working 2.80.0 (viewport capture not working)
 https://github.com/Jorhlok/SimpleTimelapser
 
 Renders from each (render enabled) camera at a regular interval for timelapses. 
@@ -37,9 +37,9 @@ bl_info = {
     'blender': (2, 80, 0),
     'category': 'Render',
     # optional
-    'version': (1, 0, 1),
+    'version': (1, 0, 2),
     'author': 'Jorhlok',
-    'description': 'Renders from the enabled viewport and/or cameras at a regular interval for timelapses.',
+    'description': 'Captures window/viewport/cameras at a regular interval for timelapses.',
 }
 
 import bpy
@@ -64,11 +64,13 @@ PROPS = [
     ('stlapse_counter', bpy.props.IntProperty(name='Counter', default=1, min=0, options = {'HIDDEN'}, description='Starting counter of the sequence')),
     ('stlapse_count_auto', bpy.props.BoolProperty(name='Update Counter after Stop', default=True, options = {'HIDDEN'}, description='Save counter when you hit the stop button')),
     ('stlapse_count_from_files', bpy.props.BoolProperty(name='Update Counter from Files', default=True, options = {'HIDDEN'}, description='Disable to overwrite. Reads files in path and uses largest sequence number if larger than counter')),
-    ('stlapse_viewport_capture', bpy.props.BoolProperty(name='Capture Viewport', default=True, options = {'HIDDEN'}, description='Render from the current 3D viewport')),
+    ('stlapse_window_capture', bpy.props.BoolProperty(name='Capture Window', default=True, options = {'HIDDEN'}, description='Capture screenshots of the window. Only saves as PNG')),
+    ('stlapse_win_name', bpy.props.StringProperty(name='Save as', default='window', options = {'HIDDEN'}, description='Name window image sequence is saved as')),
+    ('stlapse_viewport_capture', bpy.props.BoolProperty(name='Capture Viewport', default=False, options = {'HIDDEN'}, description='Render from the current 3D viewport. Doesn\'t play well with sculpt mode as of 3.0.0')),
     ('stlapse_view_name', bpy.props.StringProperty(name='Save as', default='viewport', options = {'HIDDEN'}, description='Name viewport image sequence is saved as')),
     ('stlapse_camera_capture', bpy.props.BoolProperty(name='Capture Cameras', default=False, options = {'HIDDEN'}, description='Render from selected cameras. A list of cameras that are not hidden is collected when you hit the start button. You\'re meant to stop recording to change cameras. Keep in mind cameras only see render enabled objects')),
     ('stlapse_cam_menu', bpy.props.EnumProperty(items=get_collections_enum,name='', options = {'HIDDEN'}, description='')),
-    ('stlapse_animate', bpy.props.BoolProperty(name='Animate', default=False, options = {'HIDDEN'}, description='Sets frame to Counter + Offset before each render to use animated cameras or objects. Animation will be controlled by timelapse. Don\'t start or stop animation while recording')),
+    ('stlapse_animate', bpy.props.BoolProperty(name='Animate', default=False, options = {'HIDDEN'}, description='Sets frame to Counter + Offset before each render to use animated cameras or objects. Animation will be controlled by timelapse')),
     ('stlapse_anim_offset', bpy.props.IntProperty(name='Frame Offset', default=0, options = {'HIDDEN'}, description='Difference from counter animation frame should be')),
     ('stlapse_anim_loop', bpy.props.BoolProperty(name='Loop', default=True, options = {'HIDDEN'}, description='Loop between start and end frame')),
 ]
@@ -110,6 +112,9 @@ def make_captures(num,zeros): #render and save a frame
     global camlist
     scn = bpy.context.scene
     path_dir = scn.render.filepath
+    if scn.stlapse_window_capture:
+        wintxt = scn.stlapse_win_name
+        bpy.ops.screen.screenshot(filepath=os.path.join(path_dir, wintxt, wintxt + '_' + str(num).zfill(zeros) + '.png'))
     if scn.stlapse_viewport_capture:
         viewtxt = scn.stlapse_view_name
         if viewtxt != '':
@@ -147,6 +152,7 @@ def interval_handler(): #called once an interval
     if isrecording:
         scn = bpy.context.scene
         if scn.stlapse_animate:
+            bpy.ops.screen.animation_cancel(restore_frame=False)
             frame = counter + scn.stlapse_anim_offset
             if scn.stlapse_anim_loop:
                 begin = scn.frame_start
@@ -246,6 +252,8 @@ class SimpleTimelapserPanel(bpy.types.Panel):
             row.prop(context.scene, prop_name)
             if prop_name[0:13] == 'stlapse_view_':
                 row.enabled = bpy.context.scene.stlapse_viewport_capture and not isrec
+            elif prop_name[0:12] == 'stlapse_win_':
+                row.enabled = bpy.context.scene.stlapse_window_capture and not isrec
             elif prop_name[0:12] == 'stlapse_cam_':
                 row.enabled = bpy.context.scene.stlapse_camera_capture and not isrec
             elif prop_name[0:13] == 'stlapse_anim_': 
